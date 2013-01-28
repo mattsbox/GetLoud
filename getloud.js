@@ -14,42 +14,27 @@ function badurl(url,res)
 {
 	res.writeHead(404);
 	console.log("Failed query for "+url);
+	res.end();
+}
+function query(file,type,res)
+{
+	fs.readFile(__dirname+"/"+file,function(err,data){
+		if(err){badurl(file,res);}
+		else{send(data,type,res);}
+	});
+}
+String.prototype.endsWith=function(s)
+{
+	return this.lastIndexOf(s)==(this.length-s.length);
 }
 var server=http.createServer(function(req,res)
 {
-	var txttest=/room[0-9]+.txt/;
-	if(req.url=="/")
-	{
-		fs.readFile(__dirname+"/getloud.html",function(err,data)
-		{
-			if(err){badurl(req.url,res);}
-			send(data,"text/html",res);
-		});
-	}
-	else if(req.url=="/jquery")
-	{
-		fs.readFile(__dirname+"/jquery.min.js",function(err,data)
-		{
-			if(err){badurl(req.url,res);}
-			send(data,"text/javascript",res);
-		});
-	}
-	else if(req.url=="/favicon.ico")
-	{
-		fs.readFile(__dirname+"/favicon.ico",function(err,data)
-		{
-			if(err){badurl(req.url,res);}
-			send(data,"image/x-icon",res);
-		});
-	}
-	else if(txttest.exec(req.url))
-	{
-		fs.readFile(__dirname+"/"+req.url,function(err,data)
-		{
-			if(err){badurl(req.url,res);}
-			send(data,false,res);
-		});
-	}
+	if(req.url=="/"){query("getloud.html","text/html",res);}
+	else if(req.url.endsWith(".js")){query(req.url,"text/javascript",res);}
+	else if(req.url.endsWith(".css")){query(req.url,"text/css",res);}
+	else if(req.url.endsWith("/favicon.ico")){query("favicon.ico","image/x-icon",res);}
+	//Ends with .txt
+	else if(req.url.endsWith(".txt")){query(req.url,false,res);}
 	else{badurl(req.url,res);}
 });
 var sio=io.listen(server);
@@ -84,7 +69,7 @@ sio.sockets.on("connection",function(socket)
 			}
 			else
 			{
-				fs.writeFile(__dirname+"/name"+serial,data,function(err)
+				fs.writeFile(__dirname+"/name"+serial,data+" by "+socket.nickname,function(err)
 				{
 					if(err)
 					{
