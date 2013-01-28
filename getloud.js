@@ -26,7 +26,7 @@ function query(file,type,res)
 String.prototype.endsWith=function(s)
 {
 	return this.lastIndexOf(s)==(this.length-s.length);
-}
+};
 var server=http.createServer(function(req,res)
 {
 	if(req.url=="/"){query("getloud.html","text/html",res);}
