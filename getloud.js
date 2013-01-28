@@ -75,7 +75,7 @@ sio.sockets.on("connection",function(socket)
 	socket.on("newpost",function(data)
 	{
 		data=sanitizer.escape(data);
-		var post={"id":index,"rot":random(-45,45),"top":random(10,70),"left":random(0,70),"msg":data,"serial":serial};
+		var post={"id":index,"rot":random(-45,45),"top":random(10,70),"left":random(0,70),"msg":socket.nickname+": "+data,"serial":serial};
 		fs.writeFile(__dirname+"/room"+serial+".txt",data+"\nChat room\n----------\n",function(err)
 		{
 			if(err)
@@ -94,7 +94,7 @@ sio.sockets.on("connection",function(socket)
 					else
 					{
 						sio.sockets.emit("update",post);
-						if(posts[index]){sio.sockets.emit("remove",index);}
+						//if(posts[index]){sio.sockets.emit("remove",index);}
 						posts[index]=post;
 						index++;
 						if(index>19){index=0;}
@@ -105,14 +105,11 @@ sio.sockets.on("connection",function(socket)
 			}
 			
 		});
-		//Create txt for room(serial) and use it in enterroom to get name and such
 	});
 	socket.on("enterroom",function(data)
 	{
-		console.log("data is here: "+active_rooms[data]);
 		if(active_rooms[data])
 		{
-			console.log("Good news");
 			active_rooms[data].enter(socket);
 		}
 		else
@@ -124,7 +121,11 @@ sio.sockets.on("connection",function(socket)
 			socket.room.evict(socket);
 		}
 		socket.room=active_rooms[data];
-		console.log("later it's here: "+active_rooms[data]);
+	});
+	socket.on("newnick",function(data)
+	{
+		data=sanitizer.escape(data);
+		if(data!=""){socket.nickname=data;}
 	});
 	for(var x=0;x<20;x++)
 	{
