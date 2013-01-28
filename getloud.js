@@ -2,44 +2,48 @@ var http=require("http");
 var fs=require("fs");
 var io=require("socket.io");
 var chat=require("./loudroom.js");
+var sanitizer=require("sanitizer");
+function send(data,type,res)
+{
+	if(type){res.setHeader("Content-Type","text/"+type);}
+	res.setHeader("Content-Encoding","utf-8");
+	res.writeHead(200);
+	res.end(data);
+}
+function badurl(url,res)
+{
+	res.writeHead(404);
+	console.log("Failed query for "+url);
+}
 var server=http.createServer(function(req,res)
+{
+	var txttest=/room[0-9]+.txt/;
+	if(req.url=="/")
 	{
-		if(req.url=="/")
+		fs.readFile(__dirname+"/getloud.html",function(err,data)
 		{
-			fs.readFile(__dirname+"/getloud.html",function(err,data)
-			{
-				if(err)
-				{
-					res.writeHead(404);
-					console.log("Failed query for "+req.url);
-					res.end(JSON.stringify(err));
-				}
-				res.setHeader("Content-Type","text/html");
-				res.setHeader("Content-Encoding","utf-8");
-				res.writeHead(200);
-				console.log("Succesful query for "+req.url);
-				data=(""+data).replace("%PORT%",process.env.PORT||1776);
-				res.end(data);
-			});
-		}
-		else if(req.url="/jquery")
+			if(err){badurl(req.url,res);}
+			send(data,"html",res);
+		});
+	}
+	else if(req.url=="/jquery")
+	{
+		fs.readFile(__dirname+"/jquery.min.js",function(err,data)
 		{
-			fs.readFile(__dirname+"/jquery.min.js",function(err,data)
-			{
-				if(err)
-				{
-					res.writeHead(404);
-					console.log("Failed query for "+req.url);
-					res.end(JSON.stringify(err));
-				}
-				res.setHeader("Content-Type","text/javascript");
-				res.setHeader("Content-Encoding","utf-8");
-				res.writeHead(200);
-				console.log("Succesful query for "+req.url);
-				res.end(data);
-			});
-		}
-	});
+			if(err){badurl(req.url,res);}
+			send(data,"javascript",res);
+		});
+	}
+	else if(txttest.exec(req.url))
+	{
+		fs.readFile(__dirname+"/"+req.url,function(err,data)
+		{
+			if(err){badurl(req.url,res);}
+			send(data,false,res);
+		});
+	}
+	else{badurl(req.url,res);}
+});
 var sio=io.listen(server);
 var posts=Array();
 var index=0;
@@ -52,23 +56,48 @@ function random(l,u)
 }
 sio.configure(function(){
 	sio.set("transports",["xhr-polling"]);
-	sio.set("polling duration",10);
+	sio.set("polling duration",20);
 });
 server.listen(process.env.PORT || 1776);
+socket=
 sio.sockets.on("connection",function(socket)
 {
 	socket.nickname="Guest"+guestserial;
 	guestserial++;
 	socket.on("newpost",function(data)
 	{
-		console.log(data);
+		data=sanitizer.escape(data);
 		var post={"id":index,"rot":random(-45,45),"top":random(10,70),"left":random(0,70),"msg":data,"serial":serial};
-		sio.sockets.emit("update",post);
-		if(posts[index]){sio.sockets.emit("remove",index);}
-		posts[index]=post;
-		index++;
-		if(index>19){index=0;}
-		serial++;
+		fs.writeFile(__dirname+"/room"+serial+".txt",data+"\nChat room\n----------\n",function(err)
+		{
+			if(err)
+			{
+				socket.emit("failedpost");
+			}
+			else
+			{
+				fs.writeFile(__dirname+"/name"+serial,data,function(err)
+				{
+					if(err)
+					{
+						fs.unlink(__dirname+"/room"+serial+".txt",function(err){});
+						socket.emit("failedpost");
+					}
+					else
+					{
+						sio.sockets.emit("update",post);
+						if(posts[index]){sio.sockets.emit("remove",index);}
+						posts[index]=post;
+						index++;
+						if(index>19){index=0;}
+						serial++;
+					}
+					
+				});
+			}
+			
+		});
+		//Create txt for room(serial) and use it in enterroom to get name and such
 	});
 	socket.on("enterroom",function(data)
 	{
@@ -80,8 +109,13 @@ sio.sockets.on("connection",function(socket)
 		}
 		else
 		{
-			active_rooms[data]=chat.create_room(data,socket);
+			active_rooms[data]=chat.create_room(data,socket,sio);
 		}
+		if(socket.room)
+		{
+			socket.room.evict(socket);
+		}
+		socket.room=active_rooms[data];
 		console.log("later it's here: "+active_rooms[data]);
 	});
 	for(var x=0;x<20;x++)
